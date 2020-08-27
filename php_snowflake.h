@@ -16,3 +16,4 @@ ZEND_TSRMLS_CACHE_EXTERN()
 
 PHP_METHOD(Snowflake, __construct);
 PHP_METHOD(Snowflake, generateId);
+zend_long getMs();

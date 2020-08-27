@@ -18,17 +18,26 @@
 
 zend_class_entry *snowflake_ce;
 
+/* 获取ms */
+zend_long getMs()
+{
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	return now.tv_sec * 1000 + now.tv_usec / 1000;
+}
+
 /* {{{ 类的方法
  */
 // 构造方法
 PHP_METHOD(Snowflake, __construct)
 {
-	zend_long epoch, workerId, dataCenterId = 0;
+	zend_long epoch = 0, workerId = 0, dataCenterId = 0;
 
-	// 7.0后新提供的方式 ZPP
+	// 7.0后新提供的方式 FAST-ZPP
 	// 第一个参数是开始时间 第二和第三个参数是workerid和datacenterid
-	ZEND_PARSE_PARAMETERS_START(3, 3)
+	ZEND_PARSE_PARAMETERS_START(1, 3)
 	Z_PARAM_LONG(epoch)
+	Z_PARAM_OPTIONAL
 	Z_PARAM_LONG(workerId)
 	Z_PARAM_LONG(dataCenterId)
 	ZEND_PARSE_PARAMETERS_END();
@@ -36,18 +45,15 @@ PHP_METHOD(Snowflake, __construct)
 	// 参数判断
 	if (epoch < 0 || epoch > 2199023255551)
 	{
-		php_error_docref(NULL TSRMLS_CC, E_USER_ERROR, "epoch out of range [0, 2199023255551]");
-		RETURN_FALSE;
+		zend_throw_exception(NULL, "epoch out of range [0, 2199023255551]", 10086);
 	}
 	if (workerId < 0 || workerId > 31)
 	{
-		php_error_docref(NULL TSRMLS_CC, E_USER_ERROR, "workerId %ld out of range [0, 31]", workerId);
-		RETURN_FALSE;
+		zend_throw_exception(NULL, "workerId out of range [0, 31]", 10086);
 	}
 	if (dataCenterId < 0 || dataCenterId > 31)
 	{
-		php_error_docref(NULL TSRMLS_CC, E_USER_ERROR, "dataCenterId %ld out of range [0, 31]", dataCenterId);
-		RETURN_FALSE;
+		zend_throw_exception(NULL, "dataCenterId out of range [0, 31]", 10086);
 	}
 
 	// 获取到当前对象
@@ -73,29 +79,39 @@ PHP_METHOD(Snowflake, generateId)
 	seqNumL = Z_LVAL_P(seqNum);
 	lastTimeL = Z_LVAL_P(lastTime);
 
-	struct timeval now;
-	do
+START_GENERATE:
+	// 获取当前ms
+	millisecond = getMs();
+
+	// 判断时间回拨
+	if (millisecond < lastTimeL)
 	{
-		// 计算时间差
-		gettimeofday(&now, NULL);
-		millisecond = now.tv_sec * 1000 + now.tv_usec / 1000 - Z_LVAL_P(epoch);
-
-	} while (millisecond <= lastTimeL);
-
-	// 生成id
-	snowflakeId = snowflakeId | millisecond << 22 | Z_LVAL_P(workerId) << 17 | Z_LVAL_P(dataCenterId) << 12 | seqNumL;
-
-	// 序列号判断
-	if (seqNumL >= 0xfff) /* bits: 1111 1111 1111 */
+		zend_throw_exception(NULL, "clock moved backwards", 10087);
+	}
+	// 时间一致时 判断序列号重复
+	if (millisecond == lastTimeL)
 	{
-		seqNumL = 0;
+		// 如果序列号已经达到最大值 则重新开始获取时间
+		if (seqNumL == 0xfff) /* bits: 1111 1111 1111 */
+		{
+			goto START_GENERATE;
+		}
+		else
+		{
+			seqNumL++;
+		}
 	}
 	else
 	{
-		seqNumL++;
+		seqNumL = 0;
 	}
+
+	// 生成id
+	snowflakeId = snowflakeId | (millisecond - Z_LVAL_P(epoch)) << 22 | Z_LVAL_P(workerId) << 17 | Z_LVAL_P(dataCenterId) << 12 | seqNumL;
+
+	// 记录序列号 和上次获取的时间
 	zend_update_property_long(snowflake_ce, obj, "seqNum", sizeof("seqNum") - 1, seqNumL);
-	zend_update_property_long(snowflake_ce, obj, "lastTime", sizeof("lastTime") - 1, lastTimeL);
+	zend_update_property_long(snowflake_ce, obj, "lastTime", sizeof("lastTime") - 1, millisecond);
 
 	RETURN_LONG(snowflakeId)
 }
@@ -116,11 +132,11 @@ PHP_MINIT_FUNCTION(snowflake)
 	snowflake_ce = zend_register_internal_class(&ce);
 
 	// 类的变量
-	zend_declare_property_long(snowflake_ce, "epoch", sizeof("epoch") - 1, 0, ZEND_ACC_PRIVATE);
-	zend_declare_property_long(snowflake_ce, "workerId", sizeof("workerId") - 1, 0, ZEND_ACC_PRIVATE);
-	zend_declare_property_long(snowflake_ce, "dataCenterId", sizeof("dataCenterId") - 1, 0, ZEND_ACC_PRIVATE);
-	zend_declare_property_long(snowflake_ce, "seqNum", sizeof("seqNum") - 1, 0, ZEND_ACC_PRIVATE);
-	zend_declare_property_long(snowflake_ce, "lastTime", sizeof("lastTime") - 1, 0, ZEND_ACC_PRIVATE);
+	zend_declare_property_long(snowflake_ce, "epoch", sizeof("epoch") - 1, 0, ZEND_ACC_PUBLIC);
+	zend_declare_property_long(snowflake_ce, "workerId", sizeof("workerId") - 1, 0, ZEND_ACC_PUBLIC);
+	zend_declare_property_long(snowflake_ce, "dataCenterId", sizeof("dataCenterId") - 1, 0, ZEND_ACC_PUBLIC);
+	zend_declare_property_long(snowflake_ce, "seqNum", sizeof("seqNum") - 1, 0, ZEND_ACC_PUBLIC);
+	zend_declare_property_long(snowflake_ce, "lastTime", sizeof("lastTime") - 1, 0, ZEND_ACC_PUBLIC);
 
 	return SUCCESS;
 }
