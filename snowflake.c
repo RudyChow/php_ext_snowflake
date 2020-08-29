@@ -36,10 +36,10 @@ PHP_METHOD(Snowflake, __construct)
 	// 7.0后新提供的方式 FAST-ZPP
 	// 第一个参数是开始时间 第二和第三个参数是workerid和datacenterid
 	ZEND_PARSE_PARAMETERS_START(1, 3)
-	Z_PARAM_LONG(epoch)
-	Z_PARAM_OPTIONAL
-	Z_PARAM_LONG(workerId)
-	Z_PARAM_LONG(dataCenterId)
+		Z_PARAM_LONG(epoch)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(workerId)
+		Z_PARAM_LONG(dataCenterId)
 	ZEND_PARSE_PARAMETERS_END();
 
 	// 参数判断
@@ -120,8 +120,8 @@ START_GENERATE:
 // 注册方法
 const zend_function_entry snowflake_functions[] = {
 	PHP_ME(Snowflake, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-		PHP_ME(Snowflake, generateId, NULL, ZEND_ACC_PUBLIC)
-			PHP_FE_END};
+	PHP_ME(Snowflake, generateId, NULL, ZEND_ACC_PUBLIC)
+PHP_FE_END};
 
 // 注册类
 PHP_MINIT_FUNCTION(snowflake)
@@ -132,11 +132,11 @@ PHP_MINIT_FUNCTION(snowflake)
 	snowflake_ce = zend_register_internal_class(&ce);
 
 	// 类的变量
-	zend_declare_property_long(snowflake_ce, "epoch", sizeof("epoch") - 1, 0, ZEND_ACC_PUBLIC);
-	zend_declare_property_long(snowflake_ce, "workerId", sizeof("workerId") - 1, 0, ZEND_ACC_PUBLIC);
-	zend_declare_property_long(snowflake_ce, "dataCenterId", sizeof("dataCenterId") - 1, 0, ZEND_ACC_PUBLIC);
-	zend_declare_property_long(snowflake_ce, "seqNum", sizeof("seqNum") - 1, 0, ZEND_ACC_PUBLIC);
-	zend_declare_property_long(snowflake_ce, "lastTime", sizeof("lastTime") - 1, 0, ZEND_ACC_PUBLIC);
+	zend_declare_property_long(snowflake_ce, "epoch", sizeof("epoch") - 1, 0, ZEND_ACC_PRIVATE);
+	zend_declare_property_long(snowflake_ce, "workerId", sizeof("workerId") - 1, 0, ZEND_ACC_PRIVATE);
+	zend_declare_property_long(snowflake_ce, "dataCenterId", sizeof("dataCenterId") - 1, 0, ZEND_ACC_PRIVATE);
+	zend_declare_property_long(snowflake_ce, "seqNum", sizeof("seqNum") - 1, 0, ZEND_ACC_PRIVATE);
+	zend_declare_property_long(snowflake_ce, "lastTime", sizeof("lastTime") - 1, 0, ZEND_ACC_PRIVATE);
 
 	return SUCCESS;
 }
